@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import io from 'socket.io-client';
 
-const generateUniqueId = () =>{
+const generateUniqueId = () => {
   return Math.random().toString(36).substr(2, 9);
 };
 
@@ -12,60 +12,77 @@ if (!clientId) {
   localStorage.setItem('client-id', clientId);
 }
 
+const numberOfBots = 100; // Số lượng bot bạn muốn tạo
+
 const App = () => {
-  const [socket, setSocket] = useState(null);
+  const [socket, setSocket] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [clientList, setClientList] = useState([]);
   const [messageList, setMessageList] = useState([]);
   const refMessageList = React.useRef([]);
+  const refSoclketList = React.useRef([]);
 
   const [isDisconnected, setDisconnected] = useState(false);
 
-  useEffect(() => {
+  React.useLayoutEffect(() => {
+    // console.log('useEffect')
     // Kết nối tới máy chủ
-    const socketInstance = io('http://localhost:4000',{
-      query: {
-        clientId,
-      }
-    });
+    const connectSocket = (i) => {
+      const socketInstance = io('139.59.126.96:4000', {
+      });
 
-    // Lưu đối tượng socket vào state
-    setSocket(socketInstance);
 
-    // Thực hiện các xử lý khác khi kết nối thành công
-    socketInstance.on('connect', () => {
-      console.log('Kết nối thành công đến máy chủ.');
-    });
+      // Thực hiện các xử lý khác khi kết nối thành công
+      socketInstance.on('connect', () => {
+        console.log(`Xin chào từ bot số ${i + 1}!`);
+        let temp = [
+          ...refSoclketList.current,
+          socketInstance
+        ];
+        refSoclketList.current = temp;
+        setSocket(temp);
 
-    socketInstance.on('client list', (clients) => {
-      setClientList(clients);
-    });
+        // socketInstance.emit('chat message', "test message");
 
-    socketInstance.on("reconnect", messages => {
-      setMessageList(messages);
-    });
+        // setSocket(socket.push(socketInstance));
+      });
 
-    socketInstance.on('chat message', (msg, callback) => {
-      callback({ status: "ok" });
-      let tempMsgList = [
-        ...refMessageList.current,
-        msg
-      ];
-      refMessageList.current = tempMsgList;
-      setMessageList(refMessageList.current);
-    });
+      socketInstance.on('client list', (clients) => {
+        setClientList(clients);
+      });
 
-    // Lấy danh sách client khi component được tạo
-    socketInstance.emit('get clients');
-    socketInstance.emit('join', clientId);
+      socketInstance.on("reconnect", messages => {
+        setMessageList(messages);
+      });
 
-    return () => {
-      // Ngắt kết nối khi component unmount
-      if (socketInstance) {
-        socketInstance.disconnect();
-        socketInstance.off('client list');
-      }
+      socketInstance.on('chat message', (msg, callback) => {
+        callback({ status: "ok" });
+        let tempMsgList = [
+          ...refMessageList.current,
+          {
+            ["id"]: `${i}`,
+            message: `${msg} ${i + 1}`
+          }
+        ];
+        refMessageList.current = tempMsgList;
+        setMessageList(refMessageList.current);
+      });
+
+      // Lấy danh sách client khi component được tạo
+      socketInstance.emit('get clients');
+      socketInstance.emit('join', `${clientId} ${i}`);
     };
+    for (let i = 0; i < numberOfBots; i++) {
+      connectSocket(i);
+    };
+
+    // return () => {
+    //   // Ngắt kết nối khi component unmount
+    //   if (socketInstance) {
+    //     socketInstance.disconnect();
+    //     socketInstance.off('client list');
+    //   }
+    // };
   }, []);
 
   const handleDisconnect = () => {
@@ -82,9 +99,16 @@ const App = () => {
   };
 
   const submitSocketIO = () => {
-    socket.emit('chat message', inputValue);
+    console.log("length : ", socket.length)
+    // for(let i = 0 ; i < socket.length ; i++){
+    //   socket[i].emit('chat message', `${inputValue} ${i}`);
+    // }
+    socket[0].emit('chat message', `${inputValue}`);
+
     setInputValue('');
   };
+
+  let list = messageList.sort((a, b) => a.id-b.id);
 
   return (
     <div style={{ padding: 16, margin: "auto", width: "100vw", display: "flex", alignItems: "center", flexDirection: "column" }}>
@@ -124,9 +148,9 @@ const App = () => {
       <h1>Message List</h1>
 
       {
-        messageList.map((msg) => (
+        list.map((msg) => (
           <div style={{ marginBottom: 8 }} key={Math.random()}>
-            {msg}
+            {msg.message}
           </div>
         ))
       }
